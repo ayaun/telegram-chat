@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TG Chat V7</title>
+    <title>TG Chat V7 Final</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --blue: #2481cc; --bg: #f0f2f5; --me: #effdde; --active: #f1f6fa; }
@@ -9,14 +9,14 @@
         #sidebar { width: 310px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
         #main { flex: 1; display: flex; flex-direction: column; position: relative; }
         #msgs { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-        .av-box { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; background: #2481cc; }
-        .bubble { max-width: 75%; padding: 10px 15px; border-radius: 15px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .me { align-self: flex-end; background: var(--me); }
-        .other { align-self: flex-start; background: white; }
+        .av-box { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; background: #2481cc; }
+        .bubble { max-width: 75%; padding: 10px 15px; border-radius: 15px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
+        .me { align-self: flex-end; background: var(--me); border-bottom-right-radius: 2px; }
+        .other { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
         .btn-blue { background: var(--blue); color: white; padding: 12px; width: 100%; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 5000; display: flex; justify-content: center; align-items: center; }
         .box { background: white; padding: 30px; border-radius: 20px; width: 300px; text-align: center; }
-        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -26,35 +26,33 @@
             <h2 id="title">TELEGRAM</h2>
             <input id="u" placeholder="用户名">
             <input id="p" type="password" placeholder="密码">
-            <button class="btn-blue" onclick="doAuth()">确认进入</button>
+            <button class="btn-blue" id="auth-btn" onclick="doAuth()">立即进入</button>
             <p id="switch" onclick="toggleMode()" style="color:var(--blue); cursor:pointer; font-size:12px; margin-top:15px">没有账号？点击注册</p>
         </div>
     </div>
 
     <div id="sidebar">
-        <div style="padding:20px; border-bottom:1px solid #eee"><b>我的聊天室</b></div>
-        <div id="user-list" style="flex:1; overflow-y:auto; padding:10px">
-            <p style="color:#999; text-align:center">点击注册并登录后可见</p>
+        <div style="padding:20px; border-bottom:1px solid #eee; background: white;">
+            <b>在线用户: </b><span id="my-name">未登录</span>
+        </div>
+        <div id="user-list" style="flex:1; padding:20px; color:#999; font-size:14px">
+            公共聊天室已就绪。
         </div>
     </div>
 
     <div id="main">
-        <div id="chat-h" style="padding:15px; background:white; border-bottom:1px solid #eee; font-weight:bold">公共聊天频道</div>
+        <div id="chat-h" style="padding:15px; background:white; border-bottom:1px solid #eee; font-weight:bold">公共频道</div>
         <div id="msgs"></div>
         <div style="padding:15px; display:flex; gap:10px; background:white; border-top:1px solid #eee">
-            <input id="m" style="flex:1; border-radius:20px; padding:12px; border:1px solid #ddd" placeholder="输入消息...">
-            <button onclick="send()" style="background:var(--blue); color:white; padding:0 25px; border-radius:20px; border:none; font-weight:bold">发送</button>
+            <input id="m" style="flex:1; border-radius:20px; padding:12px; border:1px solid #ddd" placeholder="在此输入消息...">
+            <button onclick="send()" style="background:var(--blue); color:white; padding:0 25px; border-radius:20px; border:none; font-weight:bold; cursor:pointer">发送</button>
         </div>
     </div>
 
-    <!-- 引用公共 Socket.io 脚本 -->
     <script src="https://socket.io"></script>
     <script>
-        const socket = io();
+        const socket = io({ reconnection: true, reconnectionAttempts: 5 });
         let me = "", mode = "login";
-
-        socket.on('connect', () => { console.log('连接成功'); });
-        socket.on('connect_error', () => { alert('无法连接到服务器，请刷新页面'); });
 
         function toggleMode() {
             mode = (mode === 'login') ? 'register' : 'login';
@@ -65,37 +63,61 @@
         function doAuth() {
             const u = document.getElementById('u').value.trim();
             const p = document.getElementById('p').value.trim();
-            if(!u || !p) return alert("请输入账号密码");
+            if(!u || !p) return alert("请填写完整");
             
-            if(!socket.connected) return alert("正在连接服务器，请稍候...");
+            document.getElementById('auth-btn').innerText = "处理中...";
             socket.emit(mode, { user: u, pass: p });
         }
 
         socket.on('auth-result', r => {
+            document.getElementById('auth-btn').innerText = "立即进入";
             if(r.success) {
-                if(r.isReg) { alert(r.msg); toggleMode(); }
-                else {
+                if(r.isReg) { 
+                    alert(r.msg); 
+                    toggleMode(); 
+                } else {
                     me = r.user;
+                    document.getElementById('my-name').innerText = me;
                     document.getElementById('auth-page').style.display = 'none';
                 }
-            } else alert(r.msg);
+            } else {
+                alert(r.msg);
+            }
+        });
+
+        socket.on('load-history', (list) => {
+            list.forEach(m => addMsgToUI(m));
         });
 
         socket.on('sys-msg', m => alert(m));
 
         function send() {
-            const v = document.getElementById('m').value;
+            const input = document.getElementById('m');
+            const v = input.value.trim();
             if(v && me) {
-                socket.emit('send-msg', { to: 'all', text: v });
-                document.getElementById('m').value = '';
+                socket.emit('send-msg', { text: v });
+                input.value = '';
             }
         }
 
-        socket.on('msg', m => {
+        function addMsgToUI(m) {
             const box = document.getElementById('msgs');
             const isMe = m.from === me;
-            box.innerHTML += `<div class="bubble ${isMe?'me':'other'}"><b>${m.from}:</b> ${m.text}<div style="font-size:10px;color:#999;text-align:right">${m.time}</div></div>`;
+            const msgHtml = `
+                <div class="bubble ${isMe?'me':'other'}">
+                    <b style="font-size:12px; color:var(--blue)">${m.from}</b><br>
+                    ${m.text}
+                    <div style="font-size:9px; color:#aaa; text-align:right; margin-top:4px">${m.time}</div>
+                </div>`;
+            box.innerHTML += msgHtml;
             box.scrollTop = box.scrollHeight;
+        }
+
+        socket.on('msg', m => addMsgToUI(m));
+        
+        // 处理回车发送
+        document.getElementById('m').addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') send();
         });
     </script>
 </body>
