@@ -2,52 +2,63 @@ const express = require('express');
 const app = express();
 const http = require('http').Server(app);
 const io = require('socket.io')(http, { 
-    maxHttpBufferSize: 1e8, // 100MB 限制
+    maxHttpBufferSize: 1e8, 
     cors: { origin: "*" } 
 });
 const fs = require('fs');
 const path = require('path');
 
-const DB_FILE = path.join(__dirname, 'db.json');
+// 数据库路径适配
+const DB_FILE = path.join(process.cwd(), 'db.json');
 let db = { users: {}, groups: {}, allMsgs: [] };
 
-// 加载数据库
 if (fs.existsSync(DB_FILE)) {
     try {
-        const data = fs.readFileSync(DB_FILE, 'utf8');
-        if (data) db = JSON.parse(data);
+        db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
     } catch (e) { console.log("初始化数据库"); }
 }
 
 function saveDB() { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
 
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 io.on('connection', (socket) => {
-    // --- 认证系统 ---
+    // --- 注册逻辑 ---
     socket.on('register', (data) => {
-        if (!data.user || db.users[data.user]) return socket.emit('sys-msg', '用户名已占用');
-        db.users[data.user] = { pass: data.pass, avatar: null, bio: '新用户', friends: [], requests: [], groups: [] };
-        saveDB(); 
-        socket.emit('auth-result', { success: true, isReg: true });
+        const u = data.user ? data.user.trim() : "";
+        if (!u || db.users[u]) return socket.emit('sys-msg', '用户名已占用或为空');
+        
+        db.users[u] = { 
+            pass: data.pass, avatar: null, bio: 'Hello!', 
+            friends: [], requests: [], groups: [] 
+        };
+        saveDB();
+        socket.emit('auth-result', { success: true, isReg: true, msg: '注册成功，请切换到登录模式' });
     });
 
+    // --- 登录逻辑 ---
     socket.on('login', (data) => {
-        const u = db.users[data.user];
-        if (u && u.pass === data.pass) {
-            socket.username = data.user; u.socketId = socket.id;
-            u.groups = u.groups || []; u.friends = u.friends || []; u.requests = u.requests || [];
-            u.groups.forEach(gid => socket.join(gid));
-            const groupList = u.groups.filter(gid => db.groups[gid]).map(gid => ({ id: gid, name: db.groups[gid].name }));
-            socket.emit('auth-result', { success: true, user: data.user, userData: u, allGroups: groupList });
-            socket.emit('load-history', db.allMsgs.filter(m => m.from === data.user || m.to === data.user || (m.isGroup && u.groups.includes(m.to))));
+        const u = data.user ? data.user.trim() : "";
+        const userObj = db.users[u];
+        
+        if (userObj && userObj.pass === data.pass) {
+            socket.username = u;
+            userObj.socketId = socket.id;
+            userObj.groups = userObj.groups || [];
+            userObj.groups.forEach(gid => socket.join(gid));
+            
+            const groupList = userObj.groups.filter(id => db.groups[id]).map(id => ({ id, name: db.groups[id].name }));
+            socket.emit('auth-result', { success: true, user: u, userData: userObj, allGroups: groupList });
+            
+            const history = db.allMsgs.filter(m => m.from === u || m.to === u || (m.isGroup && userObj.groups.includes(m.to)));
+            socket.emit('load-history', history);
         } else {
-            socket.emit('auth-result', { success: false, msg: u ? '密码错误' : '用户不存在，请先注册' });
+            socket.emit('auth-result', { success: false, msg: userObj ? '密码错误' : '用户不存在，请先注册' });
         }
     });
 
-    // --- 消息系统 ---
+    // --- 消息分发 ---
     socket.on('send-msg', (data) => {
         if(!socket.username) return;
         const msg = { 
@@ -68,7 +79,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- 资料与社交 ---
     socket.on('get-user-info', n => {
         const u = db.users;
         if(u) socket.emit('user-info-card', { user: n, avatar: u.avatar, bio: u.bio });
@@ -82,59 +92,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('find-user', n => {
-        const u = db.users;
-        if(u) socket.emit('search-result', {user: n, avatar: u.avatar, bio: u.bio});
-        else socket.emit('sys-msg', '未找到用户');
-    });
-
-    socket.on('add-request', t => {
-        if (db.users[t] && t !== socket.username) {
-            if(!db.users[t].requests.includes(socket.username)) db.users[t].requests.push(socket.username);
-            saveDB();
-            if(db.users[t].socketId) io.to(db.users[t].socketId).emit('update-data', {userData: db.users[t]});
-            socket.emit('sys-msg', '申请已发送');
-        }
-    });
-
-    socket.on('accept-friend', n => {
-        const me = db.users[socket.username], f = db.users;
-        if (me && f) {
-            if(!me.friends.includes(n)) me.friends.push(n);
-            if(!f.friends.includes(socket.username)) f.friends.push(socket.username);
-            me.requests = me.requests.filter(r => r !== n);
-            saveDB();
-            socket.emit('update-data', { userData: me });
-            if (f.socketId) io.to(f.socketId).emit('update-data', { userData: f });
-        }
-    });
-
-    // --- 群组 ---
-    socket.on('create-group', (name) => {
-        const gid = 'G' + Date.now();
-        db.groups[gid] = { name: name, members: [socket.username] };
-        db.users[socket.username].groups.push(gid);
-        saveDB(); socket.join(gid);
-        const gList = db.users[socket.username].groups.map(id => ({ id: id, name: db.groups[id].name }));
-        socket.emit('update-data', { userData: db.users[socket.username], allGroups: gList });
-    });
-
-    socket.on('invite-friend', ({ groupId, friendName }) => {
-        const f = db.users[friendName], g = db.groups[groupId];
-        if (f && g && !g.members.includes(friendName)) {
-            g.members.push(friendName); f.groups.push(groupId);
-            saveDB();
-            if (f.socketId) {
-                const s = io.sockets.sockets.get(f.socketId); if(s) s.join(groupId);
-                const gList = f.groups.map(id => ({ id: id, name: db.groups[id].name }));
-                io.to(f.socketId).emit('update-data', { userData: f, allGroups: gList });
-            }
-            socket.emit('sys-msg', '已邀请');
-        }
-    });
-
     socket.on('disconnect', () => { if(socket.username) db.users[socket.username].socketId = null; });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log(`🚀 服务启动在端口 ${PORT}`));
+http.listen(PORT, () => console.log(`🚀 Server running`));
