@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TG Flagship V7 - Video Fixed</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root { --blue: #2481cc; --bg: #f0f2f5; --me: #effdde; --active: #f1f6fa; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
+        #sidebar { width: 310px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #msgs { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
+        .av-box { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; overflow: hidden; border: 1px solid #eee; flex-shrink: 0; cursor: pointer; background: #ccc; }
+        .av-box img { width: 100%; height: 100%; object-fit: cover; }
+        .tab-btn { flex: 1; padding: 12px; border: none; cursor: pointer; background: #f4f4f4; border-bottom: 2px solid transparent; }
+        .tab-btn.active { background: white; border-bottom: 2px solid var(--blue); color: var(--blue); font-weight: bold; }
+        .list-item { padding: 12px 15px; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+        .list-item.selected { background: var(--active); border-left: 4px solid var(--blue); }
+        .bubble { max-width: 75%; padding: 10px 15px; border-radius: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 8px; position: relative; word-wrap: break-word; }
+        .me { align-self: flex-end; background: var(--me); border-bottom-right-radius: 2px; }
+        .other { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
+        .media-content { max-width: 100%; border-radius: 10px; margin-top: 8px; display: block; border: 1px solid #eee; }
+        video.media-content { max-height: 250px; background: #000; width: 100%; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 4000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .box { background: white; padding: 25px; border-radius: 20px; width: 300px; text-align: center; }
+        .btn-blue { background: var(--blue); color: white; padding: 12px; width: 100%; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        #emoji-picker { position: absolute; bottom: 120px; left: 20px; width: 260px; background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); display: none; grid-template-columns: repeat(6, 1fr); padding: 10px; z-index: 1000; }
+        .emoji-btn { font-size: 24px; padding: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <!-- 登录 -->
+    <div id="auth-page" style="position:fixed; inset:0; background:var(--blue); z-index:5000; display:flex; justify-content:center; align-items:center;">
+        <div class="box"><h2>TELEGRAM</h2><input id="u" placeholder="用户名"><input id="p" type="password" placeholder="密码"><button class="btn-blue" onclick="auth('login')">登录 / 注册</button></div>
+    </div>
+
+    <!-- 侧边 -->
+    <div id="sidebar">
+        <div style="padding:15px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #eee">
+            <div id="my-av-ui" onclick="viewProfile(me)"></div>
+            <b id="my-n" style="flex:1">加载中...</b>
+            <button onclick="document.getElementById('set-modal').style.display='flex'" style="border:none; background:#eee; padding:5px; border-radius:50%; width:30px; height:30px; cursor:pointer">⚙️</button>
+            <button onclick="document.getElementById('group-modal').style.display='flex'" style="border:none; background:#eee; padding:5px; border-radius:50%; width:30px; height:30px; cursor:pointer">+</button>
+        </div>
+        <div style="padding:10px; border-bottom:1px solid #eee">
+            <input id="search-in" placeholder="搜索并回车..." onkeypress="if(event.keyCode==13) searchUser()">
+            <div id="search-res" style="display:none; background:#f0f7ff; border-radius:8px; margin-top:10px; padding:10px"></div>
+        </div>
+        <div style="display:flex"><button class="tab-btn active" id="tab-c" onclick="switchTab('chat')">消息</button><button class="tab-btn" id="tab-r" onclick="switchTab('req')">申请</button></div>
+        <div id="list-area" style="flex:1; overflow-y:auto"></div>
+    </div>
+
+    <!-- 聊天 -->
+    <div id="main">
+        <div id="chat-h" style="padding:12px 15px; background:white; border-bottom:1px solid #eee; font-weight:bold; display:flex; justify-content:space-between; align-items:center">
+            <span id="target-title">选择对话</span>
+            <button id="invite-btn" style="display:none; background:#25d366; color:white; border:none; padding:5px 12px; border-radius:15px; cursor:pointer" onclick="showInvite()">邀请进群</button>
+        </div>
+        <div id="msgs"></div>
+        <div id="emoji-picker"></div>
+        <div style="padding:10px 20px; display:flex; gap:20px; background:white; border-top:1px solid #eee">
+            <span onclick="toggleEmojiPicker()" style="cursor:pointer; font-size:24px">😊</span>
+            <label style="cursor:pointer; font-size:24px">🖼️<input type="file" id="media-f" hidden onchange="upMedia()" accept="image/*,video/*"></label>
+        </div>
+        <div style="padding:15px; display:flex; gap:10px; background:white">
+            <input id="m" style="flex:1; border-radius:20px; padding:12px; border:1px solid #ddd" placeholder="输入消息..." onkeypress="if(event.keyCode==13) sendText()">
+            <button onclick="sendText()" class="btn-blue" style="width:80px; margin:0">发送</button>
+        </div>
+    </div>
+
+    <!-- 弹窗 -->
+    <div class="modal" id="info-modal" onclick="this.style.display='none'"><div class="box" onclick="event.stopPropagation()"><div id="info-av-big" style="width:100px; height:100px; border-radius:50%; margin:0 auto 10px; overflow:hidden"></div><h3 id="info-name"></h3><p id="info-bio"></p></div></div>
+    <div class="modal" id="set-modal"><div class="box"><h3>设置资料</h3><input type="file" id="set-av"><input id="set-bio" placeholder="我的签名"><button class="btn-blue" onclick="saveSet()">保存</button></div></div>
+    <div class="modal" id="group-modal"><div class="box"><h3>创建群组</h3><input id="gn" placeholder="群名"><button class="btn-blue" onclick="createGroup()">创建</button></div></div>
+    <div class="modal" id="invite-modal"><div class="box"><h3>邀请好友</h3><div id="group-to-invite"></div></div></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let me="", target="", isGrp=false, history=[], myData={}, allGroups=[], colors=['#e91e63','#9c27b0','#2196f3','#4caf50','#ff9800'];
+
+        function getAv(n, av, sz='42px') {
+            const content = av ? `<img src="${av}">` : (n ? n.charAt(0).toUpperCase() : '?');
+            const bg = av ? 'none' : colors[n ? n.length % 5 : 0];
+            return `<div class="av-box" style="width:${sz}; height:${sz}; background:${bg};" onclick="event.stopPropagation(); viewProfile('${n}')">${content}</div>`;
+        }
+
+        function viewProfile(username) { if(username) socket.emit('get-user-info', username); }
+        socket.on('user-info-card', d => {
+            document.getElementById('info-av-big').innerHTML = getAv(d.user, d.avatar, '100px');
+            document.getElementById('info-name').innerText = d.user;
+            document.getElementById('info-bio').innerText = d.bio || "暂无签名";
+            document.getElementById('info-modal').style.display = 'flex';
+        });
+
+        function auth(t, u, p){ 
+            const user = u || document.getElementById('u').value, pass = p || document.getElementById('p').value;
+            if(user && pass) { localStorage.setItem('tg_u', user); localStorage.setItem('tg_p', pass); socket.emit(t, {user, pass}); }
+        }
+        window.onload = () => { const u=localStorage.getItem('tg_u'), p=localStorage.getItem('tg_p'); if(u&&p) auth('login', u, p); };
+
+        socket.on('auth-result', r=>{
+            if(r.success) { me=r.user; myData=r.userData; allGroups=r.allGroups || []; document.getElementById('auth-page').style.display='none'; refreshUI(); }
+            else alert(r.msg);
+        });
+
+        function refreshUI(){
+            document.getElementById('my-av-ui').innerHTML = getAv(me, myData.avatar, '40px');
+            document.getElementById('my-n').innerText = me;
+            switchTab(document.getElementById('tab-c').classList.contains('active') ? 'chat' : 'req');
+        }
+
+        function switchTab(t){
+            const area = document.getElementById('list-area');
+            document.getElementById('tab-c').className = t==='chat' ? 'tab-btn active' : 'tab-btn';
+            document.getElementById('tab-r').className = t==='req' ? 'tab-btn active' : 'tab-btn';
+            if(t==='chat'){
+                let h = (myData.friends || []).map(f => `<div class="list-item ${f===target && !isGrp ? 'selected' : ''}" onclick="selectChat('${f}', false)">${getAv(f, null, '36px')}<b>${f}</b></div>`).join('');
+                if(allGroups.length > 0) h += `<div style="padding:10px; color:#999; font-size:11px">我的群组</div>` + allGroups.map(g => `<div class="list-item ${g.id===target && isGrp ? 'selected' : ''}" onclick="selectChat('${g.id}', true)">${getAv(g.name,null,'36px')}<b>${g.name}</b></div>`).join('');
+                area.innerHTML = h;
+            } else {
+                area.innerHTML = (myData.requests || []).map(r => `<div class="list-item" style="justify-content:space-between"><b>${r}</b><button onclick="socket.emit('accept-friend','${r}')">通过</button></div>`).join('');
+            }
+        }
+
+        function selectChat(n, g) { target = n; isGrp = g; document.getElementById('invite-btn').style.display=g?'block':'none'; refreshUI(); render(); }
+        function sendText(){ const v=document.getElementById('m').value.trim(); if(v && target){ socket.emit('send-msg',{to:target, text:v, isGroup:isGrp}); document.getElementById('m').value=''; } }
+        
+        socket.on('msg', d=>{ history.push(d); render(); });
+        socket.on('load-history', h=>{ history=h; render(); });
+        socket.on('update-data', d=>{ myData=d.userData; if(d.allGroups) allGroups=d.allGroups; refreshUI(); render(); });
+
+        // --- 重点优化：渲染函数 ---
+        function render(){
+            const box = document.getElementById('msgs');
+            const filtered = history.filter(m => isGrp ? m.to === target : (m.from==target&&m.to==me)||(m.from==me&&m.to==target));
+            document.getElementById('target-title').innerText = isGrp ? "群组: "+target : "与 "+target+" 聊天";
+            box.innerHTML = filtered.map(m => {
+                const isMe = m.from === me;
+                return `<div class="msg-row" style="display:flex; flex-direction:${isMe?'row-reverse':'row'}; gap:10px; margin-bottom:15px">
+                    ${getAv(m.from, m.avatar, '35px')}
+                    <div class="bubble ${isMe?'me':'other'}">
+                        <div style="font-size:10px; color:var(--blue); font-weight:bold; cursor:pointer" onclick="viewProfile('${m.from}')">${m.from}</div>
+                        ${m.text ? `<div>${m.text}</div>` : ''}
+                        ${m.image ? `<img src="${m.image}" class="media-content">` : ''}
+                        ${m.video ? `<video src="${m.video}" controls class="media-content"></video>` : ''}
+                        <div style="font-size:9px; color:#999; text-align:right; margin-top:5px">${m.time}</div>
+                    </div></div>`;
+            }).join('');
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // --- 重点优化：媒体读取逻辑 ---
+        function upMedia() {
+            const file = document.getElementById('media-f').files[0];
+            if(!file || !target) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = { to: target, isGroup: isGrp };
+                if(file.type.startsWith('video')) {
+                    data.video = e.target.result; // 将视频存入 video 字段
+                    data.text = "[视频消息]";
+                } else {
+                    data.image = e.target.result; // 将图片存入 image 字段
+                    data.text = file.type.includes('gif') ? "[GIF 动图]" : "[图片消息]";
+                }
+                socket.emit('send-msg', data);
+            };
+            reader.readAsDataURL(file);
+            document.getElementById('media-f').value = '';
+        }
+
+        function searchUser(){ socket.emit('find-user', document.getElementById('search-in').value.trim()); }
+        socket.on('search-result', d=>{
+            const res = document.getElementById('search-res'); res.style.display='block';
+            res.innerHTML = `<div>${d.user} <button onclick="socket.emit('add-request','${d.user}');document.getElementById('search-res').style.display='none';">添加</button></div>`;
+        });
+        function saveSet() {
+            const f = document.getElementById('set-av').files[0], b = document.getElementById('set-bio').value;
+            if (f) {
+                const r = new FileReader(); r.onload = (e) => { socket.emit('update-profile', {avatar:e.target.result, bio:b}); document.getElementById('set-modal').style.display='none'; };
+                r.readAsDataURL(f);
+            } else { socket.emit('update-profile', {bio:b}); document.getElementById('set-modal').style.display='none'; }
+        }
+        function createGroup(){ const n = document.getElementById('gn').value.trim(); if(n) { socket.emit('create-group', n); document.getElementById('group-modal').style.display='none'; } }
+        function showInvite(){
+            document.getElementById('group-to-invite').innerHTML = (myData.friends || []).map(f => `<div onclick="socket.emit('invite-friend',{groupId:'${target}', friendName:'${f}'}); document.getElementById('invite-modal').style.display='none';" style="padding:10px; border-bottom:1px solid #eee; cursor:pointer">邀请: ${f}</div>`).join('') || "无好友";
+            document.getElementById('invite-modal').style.display='flex';
+        }
+        function toggleEmojiPicker() { const ep=document.getElementById('emoji-picker'); ep.style.display = ep.style.display==='grid'?'none':'grid'; }
+        const emojis = ["😊","😂","😍","👍","🔥","✨","😭","🤔","🙏","❤️"];
+        document.getElementById('emoji-picker').innerHTML = emojis.map(e => `<div class="emoji-btn" onclick="addEmoji('${e}')">${e}</div>`).join('');
+        function addEmoji(e) { document.getElementById('m').value += e; document.getElementById('emoji-picker').style.display='none'; }
+    </script>
+</body>
+</html>
