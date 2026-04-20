@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TG Flagship V7 - Video Fixed</title>
+    <title>TG V7 Final Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --blue: #2481cc; --bg: #f0f2f5; --me: #effdde; --active: #f1f6fa; }
@@ -18,43 +18,50 @@
         .bubble { max-width: 75%; padding: 10px 15px; border-radius: 15px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin-bottom: 8px; position: relative; word-wrap: break-word; }
         .me { align-self: flex-end; background: var(--me); border-bottom-right-radius: 2px; }
         .other { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
-        .media-content { max-width: 100%; border-radius: 10px; margin-top: 8px; display: block; border: 1px solid #eee; }
+        .media-content { max-width: 100%; border-radius: 10px; margin-top: 8px; display: block; }
         video.media-content { max-height: 250px; background: #000; width: 100%; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 4000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .box { background: white; padding: 25px; border-radius: 20px; width: 300px; text-align: center; }
-        .btn-blue { background: var(--blue); color: white; padding: 12px; width: 100%; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn-blue { background: var(--blue); color: white; padding: 12px; width: 100%; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; margin-top: 5px; }
         #emoji-picker { position: absolute; bottom: 120px; left: 20px; width: 260px; background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); display: none; grid-template-columns: repeat(6, 1fr); padding: 10px; z-index: 1000; }
         .emoji-btn { font-size: 24px; padding: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <!-- 登录 -->
+    <!-- 登录注册页 -->
     <div id="auth-page" style="position:fixed; inset:0; background:var(--blue); z-index:5000; display:flex; justify-content:center; align-items:center;">
-        <div class="box"><h2>TELEGRAM</h2><input id="u" placeholder="用户名"><input id="p" type="password" placeholder="密码"><button class="btn-blue" onclick="auth('login')">登录 / 注册</button></div>
+        <div class="box">
+            <h2 id="auth-title">TELEGRAM</h2>
+            <input id="u" placeholder="用户名">
+            <input id="p" type="password" placeholder="密码">
+            <button class="btn-blue" id="auth-btn" onclick="auth('login')">登录</button>
+            <p id="auth-switch" onclick="toggleAuthMode()" style="color:var(--blue); cursor:pointer; font-size:12px; margin-top:15px">没有账号？点击注册</p>
+        </div>
     </div>
 
-    <!-- 侧边 -->
     <div id="sidebar">
         <div style="padding:15px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #eee">
             <div id="my-av-ui" onclick="viewProfile(me)"></div>
             <b id="my-n" style="flex:1">加载中...</b>
-            <button onclick="document.getElementById('set-modal').style.display='flex'" style="border:none; background:#eee; padding:5px; border-radius:50%; width:30px; height:30px; cursor:pointer">⚙️</button>
-            <button onclick="document.getElementById('group-modal').style.display='flex'" style="border:none; background:#eee; padding:5px; border-radius:50%; width:30px; height:30px; cursor:pointer">+</button>
+            <button onclick="document.getElementById('set-modal').style.display='flex'" style="border:none; background:#eee; width:30px; height:30px; border-radius:50%; cursor:pointer">⚙️</button>
+            <button onclick="document.getElementById('group-modal').style.display='flex'" style="border:none; background:#eee; width:30px; height:30px; border-radius:50%; cursor:pointer">+</button>
         </div>
         <div style="padding:10px; border-bottom:1px solid #eee">
-            <input id="search-in" placeholder="搜索并回车..." onkeypress="if(event.keyCode==13) searchUser()">
+            <input id="search-in" placeholder="搜索ID按回车..." onkeypress="if(event.keyCode==13) searchUser()">
             <div id="search-res" style="display:none; background:#f0f7ff; border-radius:8px; margin-top:10px; padding:10px"></div>
         </div>
-        <div style="display:flex"><button class="tab-btn active" id="tab-c" onclick="switchTab('chat')">消息</button><button class="tab-btn" id="tab-r" onclick="switchTab('req')">申请</button></div>
+        <div style="display:flex">
+            <button class="tab-btn active" id="tab-c" onclick="switchTab('chat')">消息</button>
+            <button class="tab-btn" id="tab-r" onclick="switchTab('req')">申请</button>
+        </div>
         <div id="list-area" style="flex:1; overflow-y:auto"></div>
     </div>
 
-    <!-- 聊天 -->
     <div id="main">
         <div id="chat-h" style="padding:12px 15px; background:white; border-bottom:1px solid #eee; font-weight:bold; display:flex; justify-content:space-between; align-items:center">
-            <span id="target-title">选择对话</span>
-            <button id="invite-btn" style="display:none; background:#25d366; color:white; border:none; padding:5px 12px; border-radius:15px; cursor:pointer" onclick="showInvite()">邀请进群</button>
+            <span id="target-title">选择好友</span>
+            <button id="invite-btn" style="display:none; background:#25d366; color:white; border:none; padding:5px 12px; border-radius:15px; cursor:pointer" onclick="showInvite()">邀请好友</button>
         </div>
         <div id="msgs"></div>
         <div id="emoji-picker"></div>
@@ -68,24 +75,50 @@
         </div>
     </div>
 
-    <!-- 弹窗 -->
+    <!-- 弹窗集 -->
     <div class="modal" id="info-modal" onclick="this.style.display='none'"><div class="box" onclick="event.stopPropagation()"><div id="info-av-big" style="width:100px; height:100px; border-radius:50%; margin:0 auto 10px; overflow:hidden"></div><h3 id="info-name"></h3><p id="info-bio"></p></div></div>
-    <div class="modal" id="set-modal"><div class="box"><h3>设置资料</h3><input type="file" id="set-av"><input id="set-bio" placeholder="我的签名"><button class="btn-blue" onclick="saveSet()">保存</button></div></div>
+    <div class="modal" id="set-modal"><div class="box"><h3>设置资料</h3><input type="file" id="set-av"><input id="set-bio" placeholder="我的签名"><button class="btn-blue" onclick="saveSet()">保存修改</button></div></div>
     <div class="modal" id="group-modal"><div class="box"><h3>创建群组</h3><input id="gn" placeholder="群名"><button class="btn-blue" onclick="createGroup()">创建</button></div></div>
     <div class="modal" id="invite-modal"><div class="box"><h3>邀请好友</h3><div id="group-to-invite"></div></div></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let me="", target="", isGrp=false, history=[], myData={}, allGroups=[], colors=['#e91e63','#9c27b0','#2196f3','#4caf50','#ff9800'];
+        let me="", target="", isGrp=false, history=[], myData={}, allGroups=[], authMode='login', colors=['#e91e63','#9c27b0','#2196f3','#4caf50','#ff9800'];
 
+        // --- 核心认证逻辑 ---
+        function toggleAuthMode() {
+            authMode = (authMode === 'login') ? 'register' : 'login';
+            document.getElementById('auth-title').innerText = (authMode === 'login') ? 'TELEGRAM' : 'REGISTER';
+            document.getElementById('auth-btn').innerText = (authMode === 'login') ? '登录' : '注册新账号';
+            document.getElementById('auth-switch').innerText = (authMode === 'login') ? '没有账号？点击注册' : '已有账号？点击登录';
+        }
+
+        function auth(mode) {
+            const u = document.getElementById('u').value.trim();
+            const p = document.getElementById('p').value.trim();
+            if(!u || !p) return alert("请填满账号密码");
+            localStorage.setItem('tg_u', u); localStorage.setItem('tg_p', p);
+            socket.emit(mode || authMode, {user: u, pass: p});
+        }
+
+        window.onload = () => { const u=localStorage.getItem('tg_u'), p=localStorage.getItem('tg_p'); if(u&&p) socket.emit('login', {user:u, pass:p}); };
+
+        socket.on('auth-result', r=>{
+            if(r.success) {
+                if(r.isReg) { alert("注册成功，请点击登录！"); toggleAuthMode(); }
+                else { me=r.user; myData=r.userData; allGroups=r.allGroups||[]; document.getElementById('auth-page').style.display='none'; refreshUI(); }
+            } else alert(r.msg);
+        });
+
+        // --- 消息与媒体 ---
         function getAv(n, av, sz='42px') {
             const content = av ? `<img src="${av}">` : (n ? n.charAt(0).toUpperCase() : '?');
             const bg = av ? 'none' : colors[n ? n.length % 5 : 0];
-            return `<div class="av-box" style="width:${sz}; height:${sz}; background:${bg};" onclick="event.stopPropagation(); viewProfile('${n}')">${content}</div>`;
+            return `<div class="av-box" style="width:${sz}; height:${sz}; background:${bg}; font-size:calc(${sz}/2.2)" onclick="viewProfile('${n}')">${content}</div>`;
         }
 
-        function viewProfile(username) { if(username) socket.emit('get-user-info', username); }
+        function viewProfile(n) { if(n) socket.emit('get-user-info', n); }
         socket.on('user-info-card', d => {
             document.getElementById('info-av-big').innerHTML = getAv(d.user, d.avatar, '100px');
             document.getElementById('info-name').innerText = d.user;
@@ -93,44 +126,25 @@
             document.getElementById('info-modal').style.display = 'flex';
         });
 
-        function auth(t, u, p){ 
-            const user = u || document.getElementById('u').value, pass = p || document.getElementById('p').value;
-            if(user && pass) { localStorage.setItem('tg_u', user); localStorage.setItem('tg_p', pass); socket.emit(t, {user, pass}); }
-        }
-        window.onload = () => { const u=localStorage.getItem('tg_u'), p=localStorage.getItem('tg_p'); if(u&&p) auth('login', u, p); };
-
-        socket.on('auth-result', r=>{
-            if(r.success) { me=r.user; myData=r.userData; allGroups=r.allGroups || []; document.getElementById('auth-page').style.display='none'; refreshUI(); }
-            else alert(r.msg);
-        });
-
-        function refreshUI(){
-            document.getElementById('my-av-ui').innerHTML = getAv(me, myData.avatar, '40px');
-            document.getElementById('my-n').innerText = me;
-            switchTab(document.getElementById('tab-c').classList.contains('active') ? 'chat' : 'req');
-        }
-
-        function switchTab(t){
-            const area = document.getElementById('list-area');
-            document.getElementById('tab-c').className = t==='chat' ? 'tab-btn active' : 'tab-btn';
-            document.getElementById('tab-r').className = t==='req' ? 'tab-btn active' : 'tab-btn';
-            if(t==='chat'){
-                let h = (myData.friends || []).map(f => `<div class="list-item ${f===target && !isGrp ? 'selected' : ''}" onclick="selectChat('${f}', false)">${getAv(f, null, '36px')}<b>${f}</b></div>`).join('');
-                if(allGroups.length > 0) h += `<div style="padding:10px; color:#999; font-size:11px">我的群组</div>` + allGroups.map(g => `<div class="list-item ${g.id===target && isGrp ? 'selected' : ''}" onclick="selectChat('${g.id}', true)">${getAv(g.name,null,'36px')}<b>${g.name}</b></div>`).join('');
-                area.innerHTML = h;
-            } else {
-                area.innerHTML = (myData.requests || []).map(r => `<div class="list-item" style="justify-content:space-between"><b>${r}</b><button onclick="socket.emit('accept-friend','${r}')">通过</button></div>`).join('');
-            }
-        }
-
-        function selectChat(n, g) { target = n; isGrp = g; document.getElementById('invite-btn').style.display=g?'block':'none'; refreshUI(); render(); }
         function sendText(){ const v=document.getElementById('m').value.trim(); if(v && target){ socket.emit('send-msg',{to:target, text:v, isGroup:isGrp}); document.getElementById('m').value=''; } }
         
+        function upMedia() {
+            const file = document.getElementById('media-f').files[0];
+            if(!file || !target) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = { to: target, isGroup: isGrp };
+                if(file.type.startsWith('video')) { data.video = e.target.result; data.text = "[视频]"; }
+                else { data.image = e.target.result; data.text = file.type.includes('gif') ? "[GIF]" : "[图片]"; }
+                socket.emit('send-msg', data);
+            };
+            reader.readAsDataURL(file);
+        }
+
         socket.on('msg', d=>{ history.push(d); render(); });
         socket.on('load-history', h=>{ history=h; render(); });
         socket.on('update-data', d=>{ myData=d.userData; if(d.allGroups) allGroups=d.allGroups; refreshUI(); render(); });
 
-        // --- 重点优化：渲染函数 ---
         function render(){
             const box = document.getElementById('msgs');
             const filtered = history.filter(m => isGrp ? m.to === target : (m.from==target&&m.to==me)||(m.from==me&&m.to==target));
@@ -150,26 +164,27 @@
             box.scrollTop = box.scrollHeight;
         }
 
-        // --- 重点优化：媒体读取逻辑 ---
-        function upMedia() {
-            const file = document.getElementById('media-f').files[0];
-            if(!file || !target) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = { to: target, isGroup: isGrp };
-                if(file.type.startsWith('video')) {
-                    data.video = e.target.result; // 将视频存入 video 字段
-                    data.text = "[视频消息]";
-                } else {
-                    data.image = e.target.result; // 将图片存入 image 字段
-                    data.text = file.type.includes('gif') ? "[GIF 动图]" : "[图片消息]";
-                }
-                socket.emit('send-msg', data);
-            };
-            reader.readAsDataURL(file);
-            document.getElementById('media-f').value = '';
+        // --- 社交逻辑 ---
+        function refreshUI(){
+            document.getElementById('my-av-ui').innerHTML = getAv(me, myData.avatar, '40px');
+            document.getElementById('my-n').innerText = me;
+            switchTab(document.getElementById('tab-c').classList.contains('active') ? 'chat' : 'req');
         }
 
+        function switchTab(t){
+            const area = document.getElementById('list-area');
+            document.getElementById('tab-c').className = t==='chat' ? 'tab-btn active' : 'tab-btn';
+            document.getElementById('tab-r').className = t==='req' ? 'tab-btn active' : 'tab-btn';
+            if(t==='chat'){
+                let h = (myData.friends || []).map(f => `<div class="list-item ${f===target && !isGrp ? 'selected' : ''}" onclick="selectChat('${f}', false)">${getAv(f, null, '36px')}<b>${f}</b></div>`).join('');
+                if(allGroups.length > 0) h += `<div style="padding:10px; color:#999; font-size:11px">我的群组</div>` + allGroups.map(g => `<div class="list-item ${g.id===target && isGrp ? 'selected' : ''}" onclick="selectChat('${g.id}', true)">${getAv(g.name,null,'36px')}<b>${g.name}</b></div>`).join('');
+                area.innerHTML = h || '<p style="text-align:center;color:#999;font-size:12px;margin-top:20px">暂无好友</p>';
+            } else {
+                area.innerHTML = (myData.requests || []).map(r => `<div class="list-item" style="justify-content:space-between"><b>${r}</b><button onclick="socket.emit('accept-friend','${r}')">通过</button></div>`).join('') || '<p style="text-align:center;color:#999;font-size:12px;margin-top:20px">暂无申请</p>';
+            }
+        }
+
+        function selectChat(n, g) { target = n; isGrp = g; document.getElementById('invite-btn').style.display=g?'block':'none'; refreshUI(); render(); }
         function searchUser(){ socket.emit('find-user', document.getElementById('search-in').value.trim()); }
         socket.on('search-result', d=>{
             const res = document.getElementById('search-res'); res.style.display='block';
@@ -191,6 +206,7 @@
         const emojis = ["😊","😂","😍","👍","🔥","✨","😭","🤔","🙏","❤️"];
         document.getElementById('emoji-picker').innerHTML = emojis.map(e => `<div class="emoji-btn" onclick="addEmoji('${e}')">${e}</div>`).join('');
         function addEmoji(e) { document.getElementById('m').value += e; document.getElementById('emoji-picker').style.display='none'; }
+        socket.on('sys-msg', m=>alert(m));
     </script>
 </body>
 </html>
