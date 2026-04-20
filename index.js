@@ -11,12 +11,12 @@ const path = require('path');
 const DB_FILE = path.join(__dirname, 'db.json');
 let db = { users: {}, groups: {}, allMsgs: [] };
 
+// 加载数据库
 if (fs.existsSync(DB_FILE)) {
     try {
         const data = fs.readFileSync(DB_FILE, 'utf8');
         if (data) db = JSON.parse(data);
-        console.log("✅ 数据库加载成功");
-    } catch (e) { console.log("⚠️ 数据库初始化"); }
+    } catch (e) { console.log("初始化数据库"); }
 }
 
 function saveDB() { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2)); }
@@ -25,11 +25,12 @@ app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 io.on('connection', (socket) => {
-    // 认证
+    // --- 认证系统 ---
     socket.on('register', (data) => {
         if (!data.user || db.users[data.user]) return socket.emit('sys-msg', '用户名已占用');
-        db.users[data.user] = { pass: data.pass, avatar: null, bio: 'Hello!', friends: [], requests: [], groups: [] };
-        saveDB(); socket.emit('auth-result', { success: true, isReg: true });
+        db.users[data.user] = { pass: data.pass, avatar: null, bio: '新用户', friends: [], requests: [], groups: [] };
+        saveDB(); 
+        socket.emit('auth-result', { success: true, isReg: true });
     });
 
     socket.on('login', (data) => {
@@ -41,18 +42,19 @@ io.on('connection', (socket) => {
             const groupList = u.groups.filter(gid => db.groups[gid]).map(gid => ({ id: gid, name: db.groups[gid].name }));
             socket.emit('auth-result', { success: true, user: data.user, userData: u, allGroups: groupList });
             socket.emit('load-history', db.allMsgs.filter(m => m.from === data.user || m.to === data.user || (m.isGroup && u.groups.includes(m.to))));
-        } else socket.emit('auth-result', { success: false, msg: '验证失败' });
+        } else {
+            socket.emit('auth-result', { success: false, msg: u ? '密码错误' : '用户不存在，请先注册' });
+        }
     });
 
-    // 核心：消息发送（区分图片、GIF、视频）
+    // --- 消息系统 ---
     socket.on('send-msg', (data) => {
         if(!socket.username) return;
         const msg = { 
             id: Date.now() + Math.random(),
             from: socket.username, to: data.to, text: data.text || "",
             avatar: db.users[socket.username].avatar,
-            image: data.image || null, 
-            video: data.video || null, // 视频数据
+            image: data.image || null, video: data.video || null,
             isGroup: data.isGroup,
             time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) 
         };
@@ -66,10 +68,10 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 用户资料与社交逻辑
-    socket.on('get-user-info', (name) => {
-        const u = db.users[name];
-        if (u) socket.emit('user-info-card', { user: name, avatar: u.avatar, bio: u.bio });
+    // --- 资料与社交 ---
+    socket.on('get-user-info', n => {
+        const u = db.users;
+        if(u) socket.emit('user-info-card', { user: n, avatar: u.avatar, bio: u.bio });
     });
 
     socket.on('update-profile', d => {
@@ -107,7 +109,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 群组逻辑
+    // --- 群组 ---
     socket.on('create-group', (name) => {
         const gid = 'G' + Date.now();
         db.groups[gid] = { name: name, members: [socket.username] };
@@ -135,4 +137,4 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log(`🚀 服务运行在端口 ${PORT}`));
+http.listen(PORT, () => console.log(`🚀 服务启动在端口 ${PORT}`));
