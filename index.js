@@ -3,78 +3,88 @@ const app = express();
 const http = require('http').Server(app);
 const io = require('socket.io')(http, { 
     maxHttpBufferSize: 1e8, 
-    cors: { origin: "*" },
-    allowEIO3: true // 增加兼容性
+    cors: { origin: "*" } 
 });
-const fs = require('fs');
 const path = require('path');
 
-// 数据库初始化
-const DB_FILE = '/tmp/db.json'; 
-let db = { users: {}, allMsgs: [] };
+// --- 核心数据库 (内存版，确保部署即用) ---
+let db = {
+    users: {}, // { username: { pass, avatar, bio, friends, requests, groups } }
+    groups: {}, // { gid: { name, members } }
+    allMsgs: []
+};
 
-if (fs.existsSync(DB_FILE)) {
-    try {
-        db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    } catch (e) { console.log("初始化数据库"); }
-}
-
-function saveDB() {
-    try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-    } catch (e) { console.error("保存失败"); }
-}
-
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(__dirname));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 io.on('connection', (socket) => {
-    console.log('用户已连接:', socket.id);
+    // --- 认证：登录与注册合一逻辑 ---
+    socket.on('auth', (data) => {
+        const { user, pass, isReg } = data;
+        if (!user || !pass) return socket.emit('sys-msg', '请填写完整信息');
 
-    // --- 注册逻辑 ---
-    socket.on('register', (data) => {
-        const u = data.user ? data.user.trim() : "";
-        if (!u) return socket.emit('sys-msg', '用户名不能为空');
-        if (db.users[u]) return socket.emit('sys-msg', '用户名已占用');
-        
-        db.users[u] = { pass: data.pass, friends: [], requests: [] };
-        saveDB();
-        console.log('新用户注册:', u);
-        socket.emit('auth-result', { success: true, isReg: true, msg: '注册成功！请直接点击登录' });
-    });
-
-    // --- 登录逻辑 ---
-    socket.on('login', (data) => {
-        const u = data.user ? data.user.trim() : "";
-        const userObj = db.users[u];
-        
-        console.log('尝试登录:', u);
-        if (userObj && userObj.pass === data.pass) {
-            socket.username = u;
-            console.log('登录成功:', u);
-            socket.emit('auth-result', { success: true, user: u, userData: userObj });
-            // 发送最近的20条历史消息
-            socket.emit('load-history', db.allMsgs.slice(-20));
+        if (isReg) {
+            if (db.users[user]) return socket.emit('sys-msg', '用户名已占用');
+            db.users[user] = { pass, avatar: null, bio: 'Hello!', friends: [], requests: [], groups: [] };
+            return socket.emit('auth-result', { success: true, isReg: true });
         } else {
-            const errorMsg = userObj ? '密码错误' : '用户不存在，请先注册';
-            socket.emit('auth-result', { success: false, msg: errorMsg });
+            const u = db.users[user];
+            if (u && u.pass === pass) {
+                socket.username = user;
+                u.socketId = socket.id;
+                // 自动加入已有的群组
+                if(u.groups) u.groups.forEach(gid => socket.join(gid));
+                
+                socket.emit('auth-result', { 
+                    success: true, 
+                    user, 
+                    userData: u,
+                    history: db.allMsgs.filter(m => m.from === user || m.to === user || (m.isGroup && u.groups.includes(m.to)))
+                });
+            } else {
+                socket.emit('sys-msg', u ? '密码错误' : '用户不存在，请先注册');
+            }
         }
     });
 
-    // --- 消息分发 ---
+    // --- 消息处理 (支持图片/视频/GIF) ---
     socket.on('send-msg', (data) => {
         if(!socket.username) return;
-        const msg = { 
-            from: socket.username, 
+        const msg = {
+            id: Date.now(),
+            from: socket.username,
+            to: data.to,
             text: data.text || "",
-            time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) 
+            image: data.image || null,
+            video: data.video || null,
+            isGroup: data.isGroup,
+            time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
         };
         db.allMsgs.push(msg);
-        if (db.allMsgs.length > 100) db.allMsgs.shift();
-        saveDB();
-        io.emit('msg', msg); 
+        if (db.allMsgs.length > 500) db.allMsgs.shift();
+
+        if (data.isGroup) {
+            io.to(data.to).emit('msg', msg);
+        } else {
+            if (db.users[data.to] && db.users[data.to].socketId) {
+                io.to(db.users[data.to].socketId).emit('msg', msg);
+            }
+            socket.emit('msg', msg); // 发给自己
+        }
+    });
+
+    // --- 资料更新 ---
+    socket.on('update-profile', (d) => {
+        if(db.users[socket.username]) {
+            Object.assign(db.users[socket.username], d);
+            socket.emit('sys-msg', '资料已更新');
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if(socket.username && db.users[socket.username]) db.users[socket.username].socketId = null;
     });
 });
 
 const PORT = process.env.PORT || 3000;
-http.listen(PORT, () => console.log('服务已在端口', PORT, '启动'));
+http.listen(PORT, () => console.log('🚀 Telegram V7 Pro 上线'));
