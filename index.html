@@ -1,124 +1,133 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TG Chat V7 Final</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Telegram V7 Pro</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <style>
-        :root { --blue: #2481cc; --bg: #f0f2f5; --me: #effdde; --active: #f1f6fa; }
-        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; height: 100vh; overflow: hidden; }
-        #sidebar { width: 310px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
-        #msgs { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
-        .av-box { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; background: #2481cc; }
-        .bubble { max-width: 75%; padding: 10px 15px; border-radius: 15px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
+        :root { --blue: #2481cc; --bg: #f0f2f5; --me: #effdde; --other: #ffffff; }
+        body { margin: 0; font-family: -apple-system, sans-serif; background: var(--bg); display: flex; height: 100vh; }
+        
+        /* 登录页 */
+        #auth-mask { position: fixed; inset: 0; background: var(--blue); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .auth-box { background: white; padding: 30px; border-radius: 20px; width: 85%; max-width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        .btn { background: var(--blue); color: white; border: none; padding: 12px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+
+        /* 主界面 */
+        #sidebar { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #chat-area { flex: 1; display: flex; flex-direction: column; background: #e7ebf0; }
+        #msgs { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
+        
+        /* 气泡 */
+        .bubble { max-width: 80%; padding: 10px 14px; border-radius: 15px; margin-bottom: 10px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); line-height: 1.5; }
         .me { align-self: flex-end; background: var(--me); border-bottom-right-radius: 2px; }
-        .other { align-self: flex-start; background: white; border-bottom-left-radius: 2px; }
-        .btn-blue { background: var(--blue); color: white; padding: 12px; width: 100%; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; }
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 5000; display: flex; justify-content: center; align-items: center; }
-        .box { background: white; padding: 30px; border-radius: 20px; width: 300px; text-align: center; }
-        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        .other { align-self: flex-start; background: var(--other); border-bottom-left-radius: 2px; }
+        .msg-name { font-size: 12px; font-weight: bold; color: var(--blue); margin-bottom: 4px; }
+        .media { max-width: 100%; border-radius: 8px; margin-top: 5px; cursor: pointer; }
+
+        /* 底部输入 */
+        .input-bar { background: white; padding: 12px; display: flex; align-items: center; gap: 10px; border-top: 1px solid #ddd; }
+        #m { flex: 1; border: none; padding: 10px; background: #f1f1f1; border-radius: 20px; outline: none; }
+        
+        @media (max-width: 600px) { #sidebar { display: none; } }
     </style>
 </head>
 <body>
 
-    <div id="auth-page" class="modal">
-        <div class="box">
-            <h2 id="title">TELEGRAM</h2>
+    <div id="auth-mask">
+        <div class="auth-box">
+            <h2 id="auth-title">TELEGRAM</h2>
             <input id="u" placeholder="用户名">
             <input id="p" type="password" placeholder="密码">
-            <button class="btn-blue" id="auth-btn" onclick="doAuth()">立即进入</button>
-            <p id="switch" onclick="toggleMode()" style="color:var(--blue); cursor:pointer; font-size:12px; margin-top:15px">没有账号？点击注册</p>
+            <button class="btn" onclick="handleAuth(false)">登录</button>
+            <button class="btn" style="background:#55acee" onclick="handleAuth(true)">注册新账号</button>
         </div>
     </div>
 
     <div id="sidebar">
-        <div style="padding:20px; border-bottom:1px solid #eee; background: white;">
-            <b>在线用户: </b><span id="my-name">未登录</span>
+        <div style="padding:20px; background:var(--blue); color:white;">
+            <b id="my-name">未登录</b>
         </div>
-        <div id="user-list" style="flex:1; padding:20px; color:#999; font-size:14px">
-            公共聊天室已就绪。
+        <div id="contact-list" style="overflow-y:auto; flex:1;">
+            <div style="padding:20px; color:#999; text-align:center">搜索 ID 添加好友</div>
         </div>
     </div>
 
-    <div id="main">
-        <div id="chat-h" style="padding:15px; background:white; border-bottom:1px solid #eee; font-weight:bold">公共频道</div>
+    <div id="chat-area">
+        <div id="chat-h" style="padding:15px; background:white; border-bottom:1px solid #ddd; font-weight:bold;">公共频道</div>
         <div id="msgs"></div>
-        <div style="padding:15px; display:flex; gap:10px; background:white; border-top:1px solid #eee">
-            <input id="m" style="flex:1; border-radius:20px; padding:12px; border:1px solid #ddd" placeholder="在此输入消息...">
-            <button onclick="send()" style="background:var(--blue); color:white; padding:0 25px; border-radius:20px; border:none; font-weight:bold; cursor:pointer">发送</button>
+        <div class="input-bar">
+            <span onclick="addEmoji('😊')" style="cursor:pointer; font-size:24px">😊</span>
+            <label style="cursor:pointer; font-size:24px">🖼️<input type="file" id="f" hidden onchange="upload()" accept="image/*,video/*"></label>
+            <input id="m" placeholder="输入消息..." onkeypress="if(event.keyCode==13) send()">
+            <button onclick="send()" style="color:var(--blue); border:none; background:none; font-weight:bold; cursor:pointer">发送</button>
         </div>
     </div>
 
     <script src="https://socket.io"></script>
     <script>
-        const socket = io({ reconnection: true, reconnectionAttempts: 5 });
-        let me = "", mode = "login";
+        const socket = io();
+        let me = "", target = "all";
 
-        function toggleMode() {
-            mode = (mode === 'login') ? 'register' : 'login';
-            document.getElementById('title').innerText = (mode === 'login') ? 'TELEGRAM' : 'REGISTER';
-            document.getElementById('switch').innerText = (mode === 'login') ? '没有账号？点击注册' : '已有账号？点击登录';
-        }
-
-        function doAuth() {
+        function handleAuth(isReg) {
             const u = document.getElementById('u').value.trim();
             const p = document.getElementById('p').value.trim();
-            if(!u || !p) return alert("请填写完整");
-            
-            document.getElementById('auth-btn').innerText = "处理中...";
-            socket.emit(mode, { user: u, pass: p });
+            if(!u || !p) return alert("请完整填写");
+            socket.emit('auth', { user: u, pass: p, isReg });
         }
 
         socket.on('auth-result', r => {
-            document.getElementById('auth-btn').innerText = "立即进入";
             if(r.success) {
-                if(r.isReg) { 
-                    alert(r.msg); 
-                    toggleMode(); 
-                } else {
+                if(r.isReg) alert("注册成功，请点击登录");
+                else {
                     me = r.user;
                     document.getElementById('my-name').innerText = me;
-                    document.getElementById('auth-page').style.display = 'none';
+                    document.getElementById('auth-mask').style.display = 'none';
+                    if(r.history) r.history.forEach(appendMsg);
                 }
-            } else {
-                alert(r.msg);
             }
         });
 
-        socket.on('load-history', (list) => {
-            list.forEach(m => addMsgToUI(m));
-        });
-
-        socket.on('sys-msg', m => alert(m));
-
         function send() {
-            const input = document.getElementById('m');
-            const v = input.value.trim();
-            if(v && me) {
-                socket.emit('send-msg', { text: v });
-                input.value = '';
+            const val = document.getElementById('m').value.trim();
+            if(val) {
+                socket.emit('send-msg', { to: target, text: val, isGroup: false });
+                document.getElementById('m').value = "";
             }
         }
 
-        function addMsgToUI(m) {
+        function upload() {
+            const file = document.getElementById('f').files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = { to: target, isGroup: false };
+                if(file.type.startsWith('video')) data.video = e.target.result;
+                else data.image = e.target.result;
+                socket.emit('send-msg', data);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        socket.on('msg', appendMsg);
+        socket.on('sys-msg', m => alert(m));
+
+        function appendMsg(m) {
             const box = document.getElementById('msgs');
             const isMe = m.from === me;
-            const msgHtml = `
+            const html = `
                 <div class="bubble ${isMe?'me':'other'}">
-                    <b style="font-size:12px; color:var(--blue)">${m.from}</b><br>
-                    ${m.text}
+                    <div class="msg-name">${m.from}</div>
+                    ${m.text ? `<div>${m.text}</div>` : ''}
+                    ${m.image ? `<img src="${m.image}" class="media" onclick="window.open(this.src)">` : ''}
+                    ${m.video ? `<video src="${m.video}" controls class="media"></video>` : ''}
                     <div style="font-size:9px; color:#aaa; text-align:right; margin-top:4px">${m.time}</div>
                 </div>`;
-            box.innerHTML += msgHtml;
+            box.innerHTML += html;
             box.scrollTop = box.scrollHeight;
         }
 
-        socket.on('msg', m => addMsgToUI(m));
-        
-        // 处理回车发送
-        document.getElementById('m').addEventListener('keypress', (e) => {
-            if(e.key === 'Enter') send();
-        });
+        function addEmoji(e) { document.getElementById('m').value += e; }
     </script>
 </body>
 </html>
